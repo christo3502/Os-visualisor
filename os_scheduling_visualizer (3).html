@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS Scheduling Visualizer</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#17233c;--muted:#66738a;--blue:#4568e8;--cyan:#16a6b6;--line:#e4eaf3;--soft:#edf1ff;--green:#16845b;--red:#c74d55}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,Helvetica,sans-serif}
+header{background:linear-gradient(120deg,#18264b,#3d5bd7);color:white;padding:28px max(20px,calc((100% - 1180px)/2))}
+header h1{margin:0;font-size:28px}header p{margin:6px 0 0;color:#dce4ff}
+main{max-width:1180px;margin:24px auto;padding:0 18px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.tabs button,.btn{border:0;border-radius:9px;padding:10px 16px;background:#e8edfb;color:#26365e;font-weight:700;cursor:pointer}
+.tabs button.active,.btn.primary{background:var(--blue);color:white}.btn:disabled{opacity:.45;cursor:not-allowed}
+.panel{display:none}.panel.active{display:block}.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px;margin-bottom:18px;box-shadow:0 5px 18px #1b31500a}
+h2{font-size:20px;margin:0 0 14px}h3{font-size:16px;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:13px}
+label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:5px}
+input,select{width:100%;padding:10px;border:1px solid #d5deeb;border-radius:8px;font:inherit;color:var(--ink);background:white}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.hint,.muted{color:var(--muted);font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}.stat{background:#f4f6ff;border-radius:10px;padding:12px}.stat strong{display:block;font-size:23px;color:var(--blue)}
+.result{overflow-x:auto}.sequence{font-weight:700;word-break:break-word;color:#344a83;margin:8px 0}
+canvas{width:100%;height:270px;border:1px solid var(--line);border-radius:10px;background:#fff}
+table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:center;padding:9px;border-bottom:1px solid var(--line)}th{background:#f3f6fc;color:#4b5c78}
+.gantt{display:flex;overflow-x:auto;gap:3px;padding:12px 0}.gantt-item{min-width:65px;text-align:center;border-radius:7px;padding:8px 5px;background:#dce5ff;border:1px solid #aebfff;font-weight:700}.gantt-item small{display:block;font-weight:400;color:#52617c}
+.error{color:var(--red);font-weight:700;margin-top:10px}.success{color:var(--green);font-weight:700}
+@media(max-width:720px){.grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.stats{grid-template-columns:1fr}header h1{font-size:23px}}
+@media(max-width:420px){.grid{grid-template-columns:1fr}.card{padding:14px}}
+</style>
+</head>
+<body>
+<header><h1>Operating System Scheduling Visualizer</h1><p>Explore disk scheduling and CPU scheduling through interactive charts and step-by-step animation.</p></header>
+<main>
+<div class="tabs">
+<button class="active" data-tab="disk">Disk Scheduling</button>
+<button data-tab="cpu">CPU Scheduling</button>
+</div>
+
+<section id="disk" class="panel active">
+<div class="card">
+<h2>Part A · Disk Scheduling</h2>
+<div class="grid">
+<div><label for="diskSize">Disk cylinders (0 to size − 1)</label><input id="diskSize" type="number" min="2" value="200"></div>
+<div><label for="head">Initial head position</label><input id="head" type="number" value="50"></div>
+<div><label for="requests">Request queue (comma separated)</label><input id="requests" value="82,170,43,140,24,16,190"></div>
+<div><label for="direction">Direction (SCAN / LOOK)</label><select id="direction"><option value="right">Right (higher cylinders)</option><option value="left">Left (lower cylinders)</option></select></div>
+</div>
+<div class="actions"><button class="btn primary" id="runDisk">Run all algorithms</button><button class="btn" id="resetDisk">Reset animation</button></div>
+<div id="diskError" class="error"></div>
+<p class="hint">Algorithms: FCFS, SSTF, SCAN, C-SCAN and LOOK. Use Next / Previous or Auto Play to follow the head movement.</p>
+</div>
+<div class="card">
+<h2>Head movement graph</h2>
+<div class="grid" style="grid-template-columns:2fr 1fr">
+<div><label for="algorithm">Choose algorithm</label><select id="algorithm"><option>FCFS</option><option>SSTF</option><option>SCAN</option><option>C-SCAN</option><option>LOOK</option></select></div>
+<div><label>Animation step</label><input id="stepLabel" value="Not started" readonly></div>
+</div>
+<canvas id="seekCanvas" width="1000" height="300"></canvas>
+<div class="actions"><button class="btn" id="previous">Previous</button><button class="btn primary" id="next">Next</button><button class="btn" id="play">Auto Play</button><button class="btn" id="pause">Pause</button></div>
+<div class="sequence" id="serviceSequence">Service sequence: —</div>
+<div class="stats"><div class="stat"><span class="muted">Total head movement</span><strong id="movement">—</strong><span class="muted">cylinders</span></div><div class="stat"><span class="muted">Requests completed</span><strong id="completed">—</strong></div><div class="stat"><span class="muted">Current head position</span><strong id="currentHead">—</strong></div></div>
+</div>
+<div class="card">
+<h2>Compare all disk algorithms</h2>
+<canvas id="compareCanvas" width="1000" height="280"></canvas>
+<div id="comparison" class="result"></div>
+</div>
+</section>
+
+<section id="cpu" class="panel">
+<div class="card">
+<h2>Part B · CPU Scheduling</h2>
+<p class="hint">This visualizer implements FCFS and Round Robin (two CPU algorithms from the assignment). Enter one process per row.</p>
+<div class="grid">
+<div><label for="cpuAlgorithm">Algorithm</label><select id="cpuAlgorithm"><option value="FCFS">FCFS (First Come First Served)</option><option value="RR">Round Robin</option></select></div>
+<div><label for="quantum">Time quantum (Round Robin)</label><input id="quantum" type="number" min="1" value="2"></div>
+<div><label for="processInput">Process data</label><input id="processInput" value="P1,0,5,2; P2,1,3,1; P3,2,4,3"></div>
+<div><label>Format</label><input value="PID, arrival, burst, priority" readonly></div>
+</div>
+<p class="hint">Separate processes with semicolons. Example: P1,0,5,2; P2,1,3,1. Priority is accepted as input for future extension; FCFS and RR do not use it.</p>
+<div class="actions"><button class="btn primary" id="runCpu">Run CPU scheduling</button></div><div id="cpuError" class="error"></div>
+</div>
+<div class="card">
+<h2>Animated Gantt chart</h2>
+<div class="gantt" id="gantt"></div>
+<div class="actions"><button class="btn" id="cpuPrevious">Previous</button><button class="btn primary" id="cpuNext">Next</button><button class="btn" id="cpuPlay">Auto Play</button><button class="btn" id="cpuPause">Pause</button></div>
+<div class="stats"><div class="stat"><span class="muted">Current time</span><strong id="cpuTime">—</strong></div><div class="stat"><span class="muted">Average waiting time</span><strong id="avgWait">—</strong></div><div class="stat"><span class="muted">Average turnaround time</span><strong id="avgTat">—</strong></div></div>
+<div id="cpuTable" class="result"></div>
+</div>
+</section>
+<p class="muted">Learning aid · OS Scheduling Visualizer · Single-file HTML, CSS and JavaScript</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+ document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x===b));
+ document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));
+}));
+let diskResults={},diskSteps=[],diskStep=0,diskTimer=null;
+const stopDisk=()=>{if(diskTimer){clearInterval(diskTimer);diskTimer=null;}};
+function parseDisk(){
+ const size=Number($('diskSize').value),head=Number($('head').value);
+ const req=$('requests').value.split(',').map(x=>x.trim()).filter(x=>x!=='').map(Number);
+ if(!Number.isInteger(size)||size<2)throw Error('Disk size must be an integer greater than 1.');
+ if(!Number.isInteger(head)||head<0||head>=size)throw Error('Initial head must be between 0 and '+(size-1)+'.');
+ if(!req.length||req.some(x=>!Number.isInteger(x)||x<0||x>=size))throw Error('Enter valid integer requests between 0 and '+(size-1)+'.');
+ return {size,head,req};
+}
+function makeResult(name,points,service){
+ let total=0;for(let i=1;i<points.length;i++)total+=Math.abs(points[i]-points[i-1]);
+ return {name,points,service,total};
+}
+function diskAlgorithms({size,head,req},dir){
+ const sorted=[...req].sort((a,b)=>a-b),left=sorted.filter(x=>x<head),right=sorted.filter(x=>x>=head);
+ let out={};
+ out.FCFS=makeResult('FCFS',[head,...req],req);
+ let remain=[...req],cur=head,seq=[];
+ while(remain.length){let idx=0;for(let i=1;i<remain.length;i++)if(Math.abs(remain[i]-cur)<Math.abs(remain[idx]-cur))idx=i;cur=remain.splice(idx,1)[0];seq.push(cur);}
+ out.SSTF=makeResult('SSTF',[head,...seq],seq);
+ if(dir==='right'){
+  let scan=[...right,size-1,...left.slice().reverse()];
+  let scanPoints=[head,...right];if(scanPoints[scanPoints.length-1]!==size-1)scanPoints.push(size-1);scanPoints.push(...left.slice().reverse());
+  out.SCAN=makeResult('SCAN',scanPoints,[...right,...left.slice().reverse()]);
+  let lookPoints=[head,...right,...left.slice().reverse()];
+  out.LOOK=makeResult('LOOK',lookPoints,[...right,...left.slice().reverse()]);
+  let cPoints=[head,...right];if(cPoints[cPoints.length-1]!==size-1)cPoints.push(size-1);cPoints.push(0,...left);
+  out['C-SCAN']=makeResult('C-SCAN',cPoints,[...right,...left]);
+ }else{
+  let scanPoints=[head,...left.slice().reverse()];if(scanPoints[scanPoints.length-1]!==0)scanPoints.push(0);scanPoints.push(...right);
+  out.SCAN=makeResult('SCAN',scanPoints,[...left.slice().reverse(),...right]);
+  out.LOOK=makeResult('LOOK',[head,...left.slice().reverse(),...right],[...left.slice().reverse(),...right]);
+  let cPoints=[head,...left.slice().reverse()];if(cPoints[cPoints.length-1]!==0)cPoints.push(0);cPoints.push(size-1,...right.slice().reverse());
+  out['C-SCAN']=makeResult('C-SCAN',cPoints,[...left.slice().reverse(),...right.slice().reverse()]);
+ }
+ return out;
+}
+function drawSeek(result,step,size){
+ const c=$('seekCanvas'),ctx=c.getContext('2d'),w=c.width,h=c.height,pad=55;
+ ctx.clearRect(0,0,w,h);ctx.fillStyle='#66738a';ctx.font='14px Arial';
+ ctx.fillText('Cylinder number',w/2-40,22);ctx.fillText('Order →',10,h-12);
+ const min=0,max=size-1,x=i=>pad+i/(Math.max(1,result.points.length-1))*(w-2*pad),y=v=>h-45-v/max*(h-90);
+ ctx.strokeStyle='#e7ecf4';ctx.lineWidth=1;
+ for(let k=0;k<=4;k++){let v=Math.round(max*k/4);ctx.beginPath();ctx.moveTo(pad,y(v));ctx.lineTo(w-pad,y(v));ctx.stroke();ctx.fillText(v,12,y(v)+4);}
+ ctx.strokeStyle='#4568e8';ctx.lineWidth=3;ctx.beginPath();
+ for(let i=0;i<=step&&i<result.points.length;i++){if(i===0)ctx.moveTo(x(i),y(result.points[i]));else ctx.lineTo(x(i),y(result.points[i]));}ctx.stroke();
+ for(let i=0;i<=step&&i<result.points.length;i++){ctx.fillStyle=i===step?'#e15b64':'#16a6b6';ctx.beginPath();ctx.arc(x(i),y(result.points[i]),6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#34415a';ctx.fillText(result.points[i],x(i)-9,y(result.points[i])-12);}
+}
+function renderDisk(){
+ const name=$('algorithm').value,r=diskResults[name];if(!r)return;
+ const upto=Math.min(diskStep,r.points.length-1);drawSeek(r,upto,Number($('diskSize').value));
+ const served=r.service.slice(0,Math.max(0,upto));
+ $('stepLabel').value=(upto+1)+' / '+r.points.length;
+ $('serviceSequence').textContent='Head path: '+r.points.slice(0,upto+1).join(' → ')+' | Service sequence: '+served.join(' → ');
+ $('movement').textContent=r.points.slice(1,upto+1).reduce((s,v,i)=>s+Math.abs(v-r.points[i]),0);
+ $('completed').textContent=served.length;$('currentHead').textContent=r.points[upto];
+ $('previous').disabled=upto===0;$('next').disabled=upto>=r.points.length-1;
+}
+function drawCompare(){
+ const c=$('compareCanvas'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);
+ const names=Object.keys(diskResults),max=Math.max(...names.map(n=>diskResults[n].total),1),barW=105,gap=75,start=90;
+ names.forEach((n,i)=>{let bh=diskResults[n].total/max*185,x=start+i*(barW+gap),y=h-45-bh;ctx.fillStyle=['#4568e8','#16a6b6','#8b6bd6','#e49a42','#269b72'][i];ctx.fillRect(x,y,barW,bh);ctx.fillStyle='#34415a';ctx.font='15px Arial';ctx.textAlign='center';ctx.fillText(n,x+barW/2,h-20);ctx.fillText(diskResults[n].total,x+barW/2,y-8);});
+ $('comparison').innerHTML='<table><tr><th>Algorithm</th><th>Service sequence</th><th>Total head movement</th></tr>'+names.map(n=>'<tr><td>'+n+'</td><td>'+diskResults[n].service.join(' → ')+'</td><td><b>'+diskResults[n].total+'</b></td></tr>').join('')+'</table>';
+}
+$('runDisk').onclick=()=>{try{stopDisk();const input=parseDisk();diskResults=diskAlgorithms(input,$('direction').value);diskStep=0;drawCompare();renderDisk();$('diskError').textContent='';}catch(e){$('diskError').textContent=e.message;}};
+$('resetDisk').onclick=()=>{stopDisk();diskStep=0;renderDisk();};
+$('algorithm').onchange=()=>{stopDisk();diskStep=0;renderDisk();};
+$('next').onclick=()=>{if(!diskResults[$('algorithm').value])return;diskStep=Math.min(diskStep+1,diskResults[$('algorithm').value].points.length-1);renderDisk();};
+$('previous').onclick=()=>{stopDisk();diskStep=Math.max(0,diskStep-1);renderDisk();};
+$('play').onclick=()=>{stopDisk();if(!diskResults[$('algorithm').value])return;diskTimer=setInterval(()=>{const r=diskResults[$('algorithm').value];if(diskStep>=r.points.length-1){stopDisk();return;}diskStep++;renderDisk();},700);};
+$('pause').onclick=stopDisk;
+
+let cpuTimeline=[],cpuMetrics=[],cpuStep=0,cpuTimer=null;
+function parseProcesses(){
+ const rows=$('processInput').value.split(';').map(s=>s.trim()).filter(Boolean);
+ if(!rows.length)throw Error('Enter at least one process.');
+ const ps=rows.map(row=>{const a=row.split(',').map(s=>s.trim());if(a.length<3||a.length>4)throw Error('Use PID, arrival, burst, priority for each process.');return {pid:a[0],arrival:Number(a[1]),burst:Number(a[2]),priority:Number(a[3]||0)};});
+ if(ps.some(p=>!p.pid||!Number.isInteger(p.arrival)||p.arrival<0||!Number.isInteger(p.burst)||p.burst<=0||!Number.isFinite(p.priority)))throw Error('PID must be given; arrival must be ≥ 0 and burst must be a positive integer.');
+ if(new Set(ps.map(p=>p.pid)).size!==ps.length)throw Error('Process IDs must be unique.');
+ return ps;
+}
+function scheduleFCFS(ps){
+ let time=0,tl=[];[...ps].sort((a,b)=>a.arrival-b.arrival).forEach(p=>{if(time<p.arrival){tl.push({pid:'Idle',start:time,end:p.arrival});time=p.arrival;}tl.push({pid:p.pid,start:time,end:time+p.burst});time+=p.burst;});return tl;
+}
+function scheduleRR(ps,q){
+ let time=0,remaining=Object.fromEntries(ps.map(p=>[p.pid,p.burst])),arr=[...ps].sort((a,b)=>a.arrival-b.arrival),i=0,queue=[],tl=[];
+ while(i<arr.length||queue.length){
+  if(!queue.length&&i<arr.length&&time<arr[i].arrival){tl.push({pid:'Idle',start:time,end:arr[i].arrival});time=arr[i].arrival;}
+  while(i<arr.length&&arr[i].arrival<=time)queue.push(arr[i++]);
+  if(!queue.length)continue;
+  const p=queue.shift(),run=Math.min(q,remaining[p.pid]),start=time;time+=run;remaining[p.pid]-=run;tl.push({pid:p.pid,start,end:time});
+  while(i<arr.length&&arr[i].arrival<=time)queue.push(arr[i++]);
+  if(remaining[p.pid]>0)queue.push(p);
+ }
+ return tl;
+}
+function metrics(ps,tl){
+ return ps.map(p=>{const slices=tl.filter(x=>x.pid===p.pid),completion=Math.max(...slices.map(x=>x.end)),tat=completion-p.arrival,wait=tat-p.burst;return {...p,completion,tat,wait};});
+}
+function renderCpu(){
+ const upto=Math.min(cpuStep,cpuTimeline.length),shown=cpuTimeline.slice(0,upto);
+ $('gantt').innerHTML=shown.map((s,i)=>'<div class="gantt-item" style="background:'+(s.pid==='Idle'?'#eee':`hsl(${(i*67+210)%360} 75% 90%)`)+'">'+s.pid+'<small>'+s.start+' – '+s.end+'</small></div>').join('');
+ $('cpuTime').textContent=upto?shown[shown.length-1].end:'0';
+ $('cpuPrevious').disabled=upto===0;$('cpuNext').disabled=upto>=cpuTimeline.length;
+ const completed=cpuMetrics.filter(m=>m.completion<= (shown.length?shown[shown.length-1].end:-1));
+ const avgW=cpuMetrics.reduce((s,m)=>s+m.wait,0)/Math.max(1,cpuMetrics.length),avgT=cpuMetrics.reduce((s,m)=>s+m.tat,0)/Math.max(1,cpuMetrics.length);
+ $('avgWait').textContent=cpuTimeline.length&&upto===cpuTimeline.length?avgW.toFixed(2):'—';
+ $('avgTat').textContent=cpuTimeline.length&&upto===cpuTimeline.length?avgT.toFixed(2):'—';
+ $('cpuTable').innerHTML='<table><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Waiting</th><th>Turnaround</th></tr>'+cpuMetrics.map(m=>'<tr><td>'+m.pid+'</td><td>'+m.arrival+'</td><td>'+m.burst+'</td><td>'+ (completed.some(c=>c.pid===m.pid)?m.completion:'—')+'</td><td>'+ (completed.some(c=>c.pid===m.pid)?m.wait:'—')+'</td><td>'+ (completed.some(c=>c.pid===m.pid)?m.tat:'—')+'</td></tr>').join('')+'</table>';
+}
+$('runCpu').onclick=()=>{try{if(cpuTimer)clearInterval(cpuTimer);const ps=parseProcesses(),algo=$('cpuAlgorithm').value,q=Number($('quantum').value);if(algo==='RR'&&(!Number.isInteger(q)||q<1))throw Error('Time quantum must be a positive integer.');cpuTimeline=algo==='FCFS'?scheduleFCFS(ps):scheduleRR(ps,q);cpuMetrics=metrics(ps,cpuTimeline);cpuStep=0;renderCpu();$('cpuError').textContent='';}catch(e){$('cpuError').textContent=e.message;}};
+$('cpuNext').onclick=()=>{cpuStep=Math.min(cpuStep+1,cpuTimeline.length);renderCpu();};
+$('cpuPrevious').onclick=()=>{if(cpuTimer)clearInterval(cpuTimer);cpuStep=Math.max(0,cpuStep-1);renderCpu();};
+$('cpuPlay').onclick=()=>{if(cpuTimer)clearInterval(cpuTimer);cpuTimer=setInterval(()=>{if(cpuStep>=cpuTimeline.length){clearInterval(cpuTimer);return;}cpuStep++;renderCpu();},700);};
+$('cpuPause').onclick=()=>{if(cpuTimer)clearInterval(cpuTimer);cpuTimer=null;};
+$('runDisk').click();
+</script>
+</body>
+</html>
